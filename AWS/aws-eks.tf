@@ -1,3 +1,6 @@
+# Get current region
+data "aws_region" "current" {}
+
 # Create IAM roles for EKS
 module "eks-iam-roles" {
   source = "./create_iam_roles"
@@ -37,6 +40,10 @@ resource "aws_eks_cluster" "eks-private-cluster" {
   # Ensure that IAM Role permissions are created before and deleted after EKS Cluster handling.
   # Otherwise, EKS will not be able to properly delete EKS managed EC2 infrastructure such as Security Groups.
   depends_on = [ module.eks-iam-roles, module.eks-vpc ]
+
+  provisioner "local-exec" {
+    command = join(" ",["aws eks --region", data.aws_region.current.name, "update-kubeconfig --name", aws_eks_cluster.eks-private-cluster.name])
+  }
 }
 
 # Create Nodegroup. Nodes are created only in private subnets
@@ -69,7 +76,7 @@ module "enable-irsa" {
   eks-cluster = aws_eks_cluster.eks-private-cluster
 }
 
-# Enable IAM role for service accounts 
+# Enable cluster autoscalar 
 module "enable-autoscalar" {
   source = "./enable_autoscalar"
 

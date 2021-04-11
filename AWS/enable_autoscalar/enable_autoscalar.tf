@@ -57,3 +57,17 @@ resource "aws_iam_role_policy_attachment" "autoscalar-role-attach" {
   role       = aws_iam_role.AmazonEKSClusterAutoscalerRole.name
   policy_arn = aws_iam_policy.AmazonEKSClusterAutoscalerPolicy.arn
 }
+
+resource "null_resource" "deploy_autoscalar" {
+
+  # Run this provisioner always
+  triggers = {
+    always_run = timestamp()
+  }
+
+  # Now deploy cluster autoscalar
+  provisioner "local-exec" {
+    command = "kubectl apply -f ./AWS/enable_autoscalar/cluster-autoscalar-autodiscover.yaml"
+  }
+
+}
