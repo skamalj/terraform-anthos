@@ -25,7 +25,7 @@ module "aws-eks-make-public" {
 
 # Create EKS cluster, only private subnets are used for cluster creation
 resource "aws_eks_cluster" "eks-private-cluster" {
-  name     = "eks-private-cluster"
+  name     = var.cluster_name
   role_arn = module.eks-iam-roles.eks-cluster-role.arn
 
   vpc_config {
@@ -44,6 +44,26 @@ resource "aws_eks_cluster" "eks-private-cluster" {
   provisioner "local-exec" {
     command = join(" ",["aws eks --region", data.aws_region.current.name, "update-kubeconfig --name", aws_eks_cluster.eks-private-cluster.name])
   }
+}
+
+# Enable security group for pods
+resource "null_resource" "enable_security_groups_for_pods" {
+
+  # Run this provisioner always
+  triggers = {
+    always_run = timestamp()
+  }
+
+  # Enable security groups for pods
+  provisioner "local-exec" {
+    command = <<EOL
+      kubectl set env daemonset aws-node -n kube-system ENABLE_POD_ENI=true;\
+      kubectl patch daemonset aws-node \
+      -n kube-system \
+      -p '{"spec": {"template": {"spec": {"initContainers": [{"env":[{"name":"DISABLE_TCP_EARLY_DEMUX","value":"true"}],"name":"aws-vpc-cni-init"}]}}}}'
+       EOL
+  }
+  depends_on = [aws_eks_cluster.eks-private-cluster]
 }
 
 # Create Nodegroup. Nodes are created only in private subnets
@@ -81,6 +101,16 @@ module "enable-autoscalar" {
   source = "./enable_autoscalar"
 
   eks-oidc-provider = module.enable-irsa.eks-oidc-provider
+
+  depends_on = [aws_eks_cluster.eks-private-cluster, module.enable-irsa]
+}
+
+# Enable container insights for monitoring and logging
+module "enable-container-insights" {
+  source = "./enable_containerinsights"
+  cluster_name = var.cluster_name
+  
+  depends_on = [ aws_eks_cluster.eks-private-cluster  ]
 }
 
 # Enable IAM role for ALB
