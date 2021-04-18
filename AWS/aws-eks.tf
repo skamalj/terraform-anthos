@@ -118,6 +118,7 @@ module "enable-alb" {
   source = "./enable_alb"
 
   eks-oidc-provider = module.enable-irsa.eks-oidc-provider
+  depends_on = [ aws_eks_cluster.eks-private-cluster  ]
 }
 
 # Outputs Endpoint and OIDC provider url

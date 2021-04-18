@@ -230,3 +230,27 @@ resource "aws_iam_role_policy_attachment" "albcontroller-role-attach" {
   role       = aws_iam_role.AmazonEKSLoadBalancerControllerRole.name
   policy_arn = aws_iam_policy.AWSLoadBalancerControllerIAMPolicy.arn
 }
+
+# Deploy application load balancer
+resource "null_resource" "deploy_alb_controller" {
+
+  # Run this provisioner always
+  triggers = {
+    always_run = timestamp()
+  }
+
+  # Now deploy application load balancer controller
+  provisioner "local-exec" {
+    command = <<EOL
+    kubectl apply -f ./AWS/enable_alb/serviceact.yaml;
+    kubectl apply -k ./AWS/enable_alb/crds;
+    helm repo add eks https://aws.github.io/eks-charts;
+    helm upgrade -i aws-load-balancer-controller eks/aws-load-balancer-controller \
+    --set clusterName=eks-private-cluster \
+    --set serviceAccount.create=false \
+    --set serviceAccount.name=aws-load-balancer-controller \
+    -n kube-system
+    EOL
+  }
+
+}
